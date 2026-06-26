@@ -75,6 +75,18 @@ body {
   letter-spacing: 0.3px;
 }
 
+.unread-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  background: #FF3B30;
+  border-radius: 10px;
+  padding: 1px 6px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 1.4;
+}
+
 .window-controls {
   display: flex;
   gap: 6px;
@@ -436,6 +448,12 @@ textarea#message-input:focus {
 
 .icon-btn:hover { background: var(--bg-tertiary); }
 .icon-btn.danger:hover { background: var(--bg-danger); }
+
+.poke-btn {
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.poke-btn:hover { background: var(--bg-warning) !important; }
+.poke-btn:active { transform: scale(0.85); }
 
 /* 覆盖面板 */
 .overlay-panel {

@@ -50,6 +50,8 @@ async function init() {
       if (isPaired) {
         showPairedView();
         loadMessageHistory();
+        // Send read receipt for any unread received messages after loading history
+        setTimeout(() => sendReadReceiptForLatestMessages(), 1000);
       }
     } catch (e) {
       console.log('Tauri context not ready, using browser mode');
@@ -150,6 +152,8 @@ function handleMessage(msg) {
         partnerId = msg.partnerId;
         showPairedView();
         loadMessageHistory();
+        // Send read receipt for unread received messages on reconnect
+        setTimeout(() => sendReadReceiptForLatestMessages(), 1000);
         showToast('已恢复配对关系');
       }
       console.log('Reconnect confirmed, paired:', isPaired);
@@ -500,7 +504,9 @@ function appendMessage(direction, content, messageId = null, isRead = false) {
       readStatusHtml = `<span class="msg-read-status">${isRead ? '已读' : '未读'}</span>`;
       if (isRead) item.classList.add('partner-read');
     } else {
-      item.classList.add('unread');
+      if (!isRead) {
+        item.classList.add('unread');
+      }
     }
     item.innerHTML = `<div class="msg-content">${content}</div><div class="msg-meta"><span class="msg-time">${timeStr}</span>${readStatusHtml}</div>`;
   }
@@ -638,6 +644,8 @@ function updatePartnerAvatarDisplay(avatarData) {
 }
 
 function showIconPicker() {
+  const grid = document.getElementById('icon-grid');
+  if (grid.children.length === 0) generateIconGrid();
   document.getElementById('icon-picker-panel').classList.remove('hidden');
 }
 
