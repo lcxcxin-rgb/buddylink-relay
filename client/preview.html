@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BuddyLink - 预览</title>
+  <style>
+    /* 完整嵌入样式，方便独立运行 */
+    :root {
+      --bg-primary: #FFFFFF; --bg-secondary: #F5F5F7; --bg-tertiary: #E8E8ED;
+      --bg-info: #E6F1FB; --bg-success: #EAF3DE; --bg-warning: #FAEEDA;
+      --bg-danger: #FCEBEB; --bg-purple: #EEEDFE;
+      --text-primary: #1D1D1F; --text-secondary: #6E6E73; --text-tertiary: #86868B;
+      --text-info: #378ADD; --text-purple: #534AB7; --text-warning: #BA7517; --text-danger: #E24B4A;
+      --border-light: rgba(0,0,0,0.08); --border-medium: rgba(0,0,0,0.12);
+      --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08); --shadow-md: 0 2px 8px rgba(0,0,0,0.12);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--font-sans); background: #E8E8ED;
+      color: var(--text-primary); display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; -webkit-font-smoothing: antialiased;
+    }
+    #app {
+      width: 320px; height: 480px; background: var(--bg-primary);
+      border-radius: var(--radius-lg); border: 0.5px solid var(--border-medium);
+      display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-md);
+      position: relative;
+    }
+    #drag-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 12px; background: var(--bg-secondary);
+      border-bottom: 0.5px solid var(--border-light); height: 32px;
+    }
+    #app-title { font-size: 12px; font-weight: 500; color: var(--text-tertiary); }
+    #close-btn { cursor: pointer; opacity: 0.8; transition: opacity 0.2s; }
+    #close-btn:hover { opacity: 1; }
+    #content { flex: 1; overflow-y: auto; }
+    .view { display: none; padding: 16px; }
+    .view.active { display: flex; flex-direction: column; }
+    .icon-area { display: flex; flex-direction: column; align-items: center; margin: 16px 0 8px; }
+    .my-icon { width: 64px; height: 64px; cursor: pointer; transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1); }
+    .my-icon:hover { transform: scale(1.08); }
+    .icon-edit { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; cursor: pointer; }
+    .icon-edit:hover { color: var(--text-info); }
+    .welcome-text { text-align: center; margin: 8px 0 12px; }
+    .welcome-text h2 { font-size: 16px; font-weight: 600; }
+    .welcome-text p { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+    .pair-buttons { display: flex; gap: 8px; margin: 12px 0; }
+    .pair-buttons .btn { flex: 1; }
+    #pair-code-area, #join-pair-area { text-align: center; margin: 16px 0; animation: slideUp 0.3s ease-out; }
+    @keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    .pair-code-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+    .pair-code { font-size: 26px; font-weight: 700; letter-spacing: 6px; color: var(--text-purple);
+      background: var(--bg-purple); padding: 14px 20px; border-radius: var(--radius-md); margin: 8px 0; }
+    .pair-code-timer { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+    .code-input { width: 100%; padding: 10px 12px; font-size: 18px; letter-spacing: 4px;
+      text-align: center; border: 1px solid var(--border-medium); border-radius: var(--radius-md);
+      background: var(--bg-secondary); color: var(--text-primary); outline: none;
+      font-family: var(--font-sans); text-transform: uppercase; }
+    .code-input:focus { border-color: var(--text-info); box-shadow: 0 0 0 3px rgba(55,138,221,0.15); }
+    .join-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .join-actions .btn { flex: 1; }
+    .settings-link { text-align: center; margin-top: 16px; }
+    .settings-link a { font-size: 12px; color: var(--text-tertiary); cursor: pointer;
+      display: inline-flex; align-items: center; gap: 4px; }
+    #partner-header { display: flex; align-items: center; gap: 10px; padding: 10px 0;
+      border-bottom: 0.5px solid var(--border-light); }
+    .partner-icon { width: 44px; height: 44px; }
+    .partner-info { flex: 1; }
+    .partner-name { font-size: 15px; font-weight: 600; }
+    .partner-status { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 5px; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .status-dot.online { background: #34C759; animation: breathe 2s ease-in-out infinite; }
+    .status-dot.offline { background: #999; }
+    .status-dot.away { background: #FF9F0A; }
+    .status-dot.unknown { background: #B4B2A9; }
+    @keyframes breathe { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+    .header-actions { display: flex; gap: 2px; }
+    #poke-area { text-align: center; padding: 6px 0; }
+    .poke-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+      background: var(--bg-warning); border: 0.5px solid rgba(186,117,23,0.3);
+      border-radius: 20px; cursor: pointer; font-size: 13px; color: var(--text-warning);
+      transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1); font-family: var(--font-sans); }
+    .poke-btn:hover { transform: scale(1.08); }
+    .poke-btn:active { transform: scale(0.92); }
+    #message-area { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .message-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+    .message-item { padding: 8px 12px; margin-bottom: 4px; border-radius: var(--radius-md);
+      max-width: 80%; font-size: 13px; line-height: 1.5; animation: msgSlide 0.25s ease-out; word-break: break-word; }
+    @keyframes msgSlide { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .message-item.sent { background: var(--bg-info); margin-left: auto; text-align: right; border-bottom-right-radius: 4px; }
+    .message-item.received { background: var(--bg-secondary); border-bottom-left-radius: 4px; }
+    .message-item .msg-time { font-size: 10px; color: var(--text-tertiary); margin-top: 3px; }
+    .message-input-area { display: flex; gap: 6px; padding: 6px 0; border-top: 0.5px solid var(--border-light); align-items: center; }
+    textarea#message-input { flex: 1; padding: 8px 10px; font-size: 13px;
+      border: 1px solid var(--border-medium); border-radius: var(--radius-md);
+      background: var(--bg-secondary); color: var(--text-primary); outline: none;
+      font-family: var(--font-sans); resize: none; line-height: 1.4; max-height: 60px; }
+    textarea#message-input:focus { border-color: var(--text-info); }
+    .btn { padding: 8px 14px; border-radius: var(--radius-md); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s; border: none; font-family: var(--font-sans);
+      display: inline-flex; align-items: center; justify-content: center; }
+    .btn:active { transform: scale(0.95); }
+    .btn.primary { background: var(--text-info); color: white; }
+    .btn.primary:hover { background: #185FA5; }
+    .btn.secondary { background: var(--bg-secondary); color: var(--text-primary); border: 0.5px solid var(--border-medium); }
+    .btn.secondary:hover { background: var(--bg-tertiary); }
+    .icon-btn { padding: 4px; border: none; background: transparent; cursor: pointer; border-radius: 4px;
+      transition: background 0.2s; display: inline-flex; align-items: center; }
+    .icon-btn:hover { background: var(--bg-tertiary); }
+    .icon-btn.danger:hover { background: var(--bg-danger); }
+    .overlay-panel { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg-primary); z-index: 100; padding: 16px; display: flex;
+      flex-direction: column; animation: panelSlide 0.25s ease-out; }
+    @keyframes panelSlide { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    .settings-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .settings-header h3 { font-size: 15px; font-weight: 600; }
+    .settings-body label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block; }
+    .settings-body input { width: 100%; padding: 8px 10px; font-size: 13px;
+      border: 1px solid var(--border-medium); border-radius: var(--radius-md);
+      background: var(--bg-secondary); color: var(--text-primary); outline: none;
+      margin-bottom: 12px; font-family: var(--font-sans); }
+    .settings-body input:focus { border-color: var(--text-info); }
+    .icon-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin: 16px 0; justify-items: center; }
+    .icon-option { width: 48px; height: 48px; border-radius: 50%; cursor: pointer;
+      border: 2px solid transparent; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+    .icon-option:hover { transform: scale(1.12); border-color: var(--text-info); }
+    #poke-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(29,29,31,0.4); z-index: 200; display: flex; align-items: center;
+      justify-content: center; backdrop-filter: blur(4px); animation: fadeIn 0.2s; }
+    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    .poke-animation-content { animation: pokeBounce 0.5s ease-in-out 4; }
+    @keyframes pokeBounce { 0%,100% { transform:scale(1); } 50% { transform:scale(1.2); } }
+    #connection-bar { padding: 3px 12px; background: var(--bg-secondary); font-size: 10px;
+      color: var(--text-tertiary); text-align: center; border-top: 0.5px solid var(--border-light); }
+    #connection-bar.connected { color: #34C759; }
+    .hidden { display: none !important; }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 2px; }
+    .toast { position: absolute; top: 40px; left: 50%; transform: translateX(-50%);
+      background: var(--bg-secondary); border: 0.5px solid var(--border-medium);
+      border-radius: var(--radius-md); padding: 8px 14px; font-size: 12px;
+      color: var(--text-primary); z-index: 300; box-shadow: var(--shadow-md);
+      animation: toastSlide 0.3s ease-out; }
+    @keyframes toastSlide { from { opacity:0; transform:translateX(-50%) translateY(-10px); }
+      to { opacity:1; transform:translateX(-50%) translateY(0); } }
+    .custom-icon-area { margin-top: 12px; text-align: center; }
+    /* 模拟模式提示 */
+    .sim-badge { position: absolute; bottom: 20px; right: 12px; font-size: 10px;
+      color: var(--text-tertiary); background: var(--bg-secondary); padding: 2px 6px;
+      border-radius: 4px; opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="drag-bar">
+      <div id="drag-indicator">
+        <svg width="24" height="4" viewBox="0 0 24 4"><rect width="24" height="4" rx="2" fill="rgba(0,0,0,0.15)"/></svg>
+      </div>
+      <div id="app-title">BuddyLink</div>
+      <div id="close-btn">
+        <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#FF5F57"/></svg>
+      </div>
+    </div>
+
+    <div id="content">
+      <!-- 未配对状态 -->
+      <div id="not-paired" class="view active">
+        <div class="icon-area">
+          <div class="my-icon" id="my-icon-display" onclick="showIconPicker()">
+            <svg width="64" height="64" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="30" fill="#E6F1FB" stroke="#378ADD" stroke-width="2"/>
+              <text x="32" y="36" text-anchor="middle" font-size="22" font-weight="600" fill="#378ADD">B</text>
+            </svg>
+          </div>
+          <div class="icon-edit" onclick="showIconPicker()">点击更换图标</div>
+        </div>
+        <div class="welcome-text">
+          <h2>开始配对</h2>
+          <p>与另一台 Mac 配对后，即可留言、戳一戳互动</p>
+        </div>
+        <div class="pair-buttons">
+          <button class="btn primary" onclick="simCreatePair()">生成配对码</button>
+          <button class="btn secondary" onclick="showJoinPair()">输入配对码</button>
+        </div>
+        <div id="pair-code-area" class="hidden">
+          <div class="pair-code-label">将此码分享给对方</div>
+          <div class="pair-code" id="pair-code-display">---</div>
+          <div class="pair-code-timer" id="pair-code-timer"></div>
+        </div>
+        <div id="join-pair-area" class="hidden">
+          <div class="pair-code-label">输入对方的配对码</div>
+          <input type="text" id="join-code-input" maxlength="6" placeholder="如 A3K9F2" class="code-input">
+          <div class="join-actions">
+            <button class="btn secondary" onclick="hideJoinPair()">取消</button>
+            <button class="btn primary" onclick="simJoinPair()">连接</button>
+          </div>
+        </div>
+        <div class="settings-link"><a onclick="showSettings()">服务器设置</a></div>
+      </div>
+
+      <!-- 已配对状态 -->
+      <div id="paired" class="view">
+        <div id="partner-header">
+          <div class="partner-icon" id="partner-icon-display">
+            <svg width="44" height="44" viewBox="0 0 44 44">
+              <circle cx="22" cy="22" r="20" fill="#CECBF6" stroke="#534AB7" stroke-width="2"/>
+              <text x="22" y="26" text-anchor="middle" font-size="16" font-weight="600" fill="#534AB7">?</text>
+            </svg>
+          </div>
+          <div class="partner-info">
+            <div class="partner-name" id="partner-name">对方</div>
+            <div class="partner-status" id="partner-status-indicator">
+              <span class="status-dot unknown"></span><span class="status-text">未知</span>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button class="icon-btn" onclick="showSettings()">
+              <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="3.5" r="1.3" fill="#888"/><circle cx="7" cy="7" r="1.3" fill="#888"/><circle cx="7" cy="10.5" r="1.3" fill="#888"/></svg>
+            </button>
+            <button class="icon-btn danger" onclick="simUnpair()">
+              <svg width="14" height="14" viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12" stroke="#E24B4A" stroke-width="2"/><line x1="12" y1="2" x2="2" y2="12" stroke="#E24B4A" stroke-width="2"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="poke-area">
+          <button class="poke-btn" onclick="simPoke()">
+            <svg width="20" height="20" viewBox="0 0 24 24"><path d="M7 11C7 9 9 7 12 7C15 7 17 9 17 11" stroke="#BA7517" stroke-width="2" fill="none"/><circle cx="9" cy="14" r="1.5" fill="#BA7517"/><circle cx="15" cy="14" r="1.5" fill="#BA7517"/></svg>
+            戳一戳
+          </button>
+        </div>
+        <div id="message-area">
+          <div id="message-list" class="message-list"></div>
+          <div class="message-input-area">
+            <textarea id="message-input" placeholder="给对方留言..." rows="1" maxlength="500"></textarea>
+            <button class="btn primary send-btn" onclick="simSendMessage()">
+              <svg width="14" height="14" viewBox="0 0 14 14"><path d="M2 7L12 2L7 12L6 8L2 7Z" fill="white"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设置面板 -->
+    <div id="settings-panel" class="hidden overlay-panel">
+      <div class="settings-header">
+        <h3>设置</h3>
+        <button class="icon-btn" onclick="hideSettings()">
+          <svg width="14" height="14" viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12" stroke="#888" stroke-width="2"/><line x1="12" y1="2" x2="2" y2="12" stroke="#888" stroke-width="2"/></svg>
+        </button>
+      </div>
+      <div class="settings-body">
+        <label>我的昵称</label><input type="text" id="setting-name" placeholder="显示名称">
+        <label>中继服务器地址</label><input type="text" id="setting-server" value="ws://localhost:8443">
+        <button class="btn primary" onclick="hideSettings(); showToast('设置已保存')">保存</button>
+      </div>
+    </div>
+
+    <!-- 图标选择 -->
+    <div id="icon-picker-panel" class="hidden overlay-panel">
+      <div class="settings-header">
+        <h3>选择图标</h3>
+        <button class="icon-btn" onclick="hideIconPicker()">
+          <svg width="14" height="14" viewBox="0 0 14 14"><line x1="2" y1="2" x2="12" y2="12" stroke="#888" stroke-width="2"/><line x1="12" y1="2" x2="2" y2="12" stroke="#888" stroke-width="2"/></svg>
+        </button>
+      </div>
+      <div class="icon-grid" id="icon-grid"></div>
+    </div>
+
+    <!-- 戳一戳动画 -->
+    <div id="poke-overlay" class="hidden">
+      <div class="poke-animation-content">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="55" fill="rgba(250,238,218,0.8)">
+            <animate attributeName="r" values="30;55;30" dur="0.6s" repeatCount="3"/>
+          </circle>
+          <circle cx="60" cy="60" r="40" fill="#FAEEDA" stroke="#EF9F27" stroke-width="3">
+            <animate attributeName="r" values="30;45;30" dur="0.5s" repeatCount="4"/>
+          </circle>
+          <text x="60" y="68" text-anchor="middle" font-size="24" font-weight="600" fill="#BA7517">戳!</text>
+        </svg>
+      </div>
+    </div>
+
+    <div id="connection-bar" class="connected"><span id="connection-status">模拟模式</span></div>
+    <div class="sim-badge">模拟预览</div>
+  </div>
+
+  <script>
+    // 模拟模式 - 独立运行版本
+    let simPaired = false;
+
+    function showToast(msg) {
+      const old = document.querySelector('.toast');
+      if (old) old.remove();
+      const t = document.createElement('div');
+      t.className = 'toast'; t.textContent = msg;
+      document.getElementById('app').appendChild(t);
+      setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2000);
+    }
+
+    function simCreatePair() {
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      document.getElementById('pair-code-display').textContent = code;
+      document.getElementById('pair-code-area').classList.remove('hidden');
+      document.getElementById('join-pair-area').classList.add('hidden');
+      // 模拟5分钟计时
+      let remaining = 300;
+      const timer = document.getElementById('pair-code-timer');
+      const interval = setInterval(() => {
+        remaining--;
+        const m = Math.floor(remaining / 60), s = remaining % 60;
+        timer.textContent = `${m}:${s.toString().padStart(2,'0')} 后过期`;
+        if (remaining <= 0) { timer.textContent = '配对码已过期'; clearInterval(interval); }
+      }, 1000);
+      showToast('配对码已生成');
+    }
+
+    function showJoinPair() {
+      document.getElementById('join-pair-area').classList.remove('hidden');
+      document.getElementById('pair-code-area').classList.add('hidden');
+    }
+
+    function hideJoinPair() {
+      document.getElementById('join-pair-area').classList.add('hidden');
+    }
+
+    function simJoinPair() {
+      const code = document.getElementById('join-code-input').value.trim();
+      if (!code || code.length !== 6) { showToast('请输入6位配对码'); return; }
+      simPaired = true;
+      showPairedView();
+      updatePartnerStatus('online');
+      showToast('配对成功！');
+      // 模拟对方发来消息
+      setTimeout(() => appendMessage('received', '嗨！我已经连上了 😊'), 1500);
+    }
+
+    function simSendMessage() {
+      const input = document.getElementById('message-input');
+      const content = input.value.trim();
+      if (!content) return;
+      appendMessage('sent', content);
+      input.value = '';
+      // 模拟对方回复
+      setTimeout(() => {
+        const replies = ['收到！', '好的~', '哈哈哈', '了解了', '嗯嗯'];
+        appendMessage('received', replies[Math.floor(Math.random() * replies.length)]);
+      }, 800 + Math.random() * 1500);
+    }
+
+    function simPoke() {
+      showToast('戳了对方一下');
+      // 模拟对方回戳
+      setTimeout(() => showPokeAnimation(), 1500);
+    }
+
+    function simUnpair() {
+      if (!confirm('确定要取消配对吗？')) return;
+      simPaired = false;
+      showNotPairedView();
+      showToast('已取消配对');
+    }
+
+    function appendMessage(dir, content) {
+      const list = document.getElementById('message-list');
+      const item = document.createElement('div');
+      item.className = `message-item ${dir}`;
+      const time = new Date().toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit' });
+      item.innerHTML = `<div class="msg-content">${content}</div><div class="msg-time">${time}</div>`;
+      list.appendChild(item);
+      list.scrollTop = list.scrollHeight;
+    }
+
+    function showPokeAnimation() {
+      document.getElementById('poke-overlay').classList.remove('hidden');
+      setTimeout(() => document.getElementById('poke-overlay').classList.add('hidden'), 2000);
+    }
+
+    function updatePartnerStatus(status) {
+      const ind = document.getElementById('partner-status-indicator');
+      const dot = ind.querySelector('.status-dot');
+      const txt = ind.querySelector('.status-text');
+      dot.className = 'status-dot ' + status;
+      const labels = { online:'在线', offline:'离线', away:'离开', unknown:'未知' };
+      txt.textContent = labels[status] || status;
+    }
+
+    function showPairedView() {
+      document.getElementById('not-paired').classList.remove('active');
+      document.getElementById('not-paired').style.display = 'none';
+      document.getElementById('paired').classList.add('active');
+      document.getElementById('paired').style.display = 'flex';
+    }
+
+    function showNotPairedView() {
+      document.getElementById('paired').classList.remove('active');
+      document.getElementById('paired').style.display = 'none';
+      document.getElementById('not-paired').classList.add('active');
+      document.getElementById('not-paired').style.display = 'flex';
+    }
+
+    function showSettings() { document.getElementById('settings-panel').classList.remove('hidden'); }
+    function hideSettings() { document.getElementById('settings-panel').classList.add('hidden'); }
+    function showIconPicker() { document.getElementById('icon-picker-panel').classList.remove('hidden'); }
+    function hideIconPicker() { document.getElementById('icon-picker-panel').classList.add('hidden'); }
+
+    // 图标选择器
+    function generateIconGrid() {
+      const grid = document.getElementById('icon-grid');
+      const icons = [
+        { bg:'#E6F1FB', stroke:'#378ADD', label:'B' },
+        { bg:'#CECBF6', stroke:'#534AB7', label:'L' },
+        { bg:'#EAF3DE', stroke:'#34C759', label:'G' },
+        { bg:'#FAEEDA', stroke:'#FF9F0A', label:'S' },
+        { bg:'#FCEBEB', stroke:'#FF3B30', label:'R' },
+        { bg:'#E1F5EE', stroke:'#30D158', label:'T' },
+        { bg:'#FBEAF0', stroke:'#FF6482', label:'P' },
+        { bg:'#F1EFE8', stroke:'#8E8E93', label:'M' },
+      ];
+      icons.forEach(c => {
+        const opt = document.createElement('div');
+        opt.className = 'icon-option';
+        opt.innerHTML = `<svg width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="20" fill="${c.bg}" stroke="${c.stroke}" stroke-width="2"/><text x="22" y="26" text-anchor="middle" font-size="16" font-weight="600" fill="${c.stroke}">${c.label}</text></svg>`;
+        opt.onclick = () => {
+          document.getElementById('my-icon-display').innerHTML = `<svg width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="${c.bg}" stroke="${c.stroke}" stroke-width="2"/><text x="32" y="36" text-anchor="middle" font-size="22" font-weight="600" fill="${c.stroke}">${c.label}</text></svg>`;
+          hideIconPicker();
+          showToast('图标已更新');
+        };
+        grid.appendChild(opt);
+      });
+    }
+
+    // 键盘事件
+    document.addEventListener('DOMContentLoaded', () => {
+      const msgInput = document.getElementById('message-input');
+      msgInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); simSendMessage(); }
+      });
+      msgInput.addEventListener('input', () => {
+        msgInput.style.height = 'auto';
+        msgInput.style.height = Math.min(msgInput.scrollHeight, 60) + 'px';
+      });
+      const joinInput = document.getElementById('join-code-input');
+      joinInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); simJoinPair(); }
+      });
+      joinInput.addEventListener('input', function() {
+        this.value = this.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      });
+      generateIconGrid();
+    });
+  </script>
+</body>
+</html>

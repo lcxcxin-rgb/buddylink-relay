@@ -44,7 +44,10 @@ async function init() {
       // Update UI with stored profile
       if (myName) document.getElementById('my-name-input').value = myName;
       if (myAvatar) updateMyAvatarDisplay(myAvatar);
-      if (partnerName) document.getElementById('partner-name').textContent = partnerName;
+      // Always show partner name in paired view - even "对方" is better than blank
+      if (partnerName) {
+        document.getElementById('partner-name').textContent = partnerName;
+      }
       if (partnerAvatar) updatePartnerAvatarDisplay(partnerAvatar);
 
       if (isPaired) {
@@ -142,20 +145,48 @@ function handleMessage(msg) {
 
     case 'reconnect_ack':
       deviceId = msg.deviceId;
-      isPaired = msg.isPaired;
-      if (tauriApi) tauriApi.core.invoke('handle_reconnect_result', {
-        deviceId: msg.deviceId,
-        isPaired: msg.isPaired,
-        partnerId: msg.partnerId || null,
-      });
-      if (isPaired && msg.partnerId) {
+
+      // IMPORTANT: Don't override local isPaired with server's false value.
+      // Server may have restarted and lost pairing state, but our local DB still has it.
+      // Only upgrade isPaired to true if server confirms it.
+      if (msg.isPaired) {
+        isPaired = true;
+      }
+      // If server says false but we already know we're paired (from local DB),
+      // keep our local state - the server will catch up when partner also reconnects.
+
+      // Update partnerId from server if provided
+      if (msg.partnerId) {
         partnerId = msg.partnerId;
+      }
+
+      // Update partner name/avatar from server if provided
+      // (Server sends partner's current info when partner is online)
+      if (msg.partnerName) {
+        partnerName = msg.partnerName;
+        document.getElementById('partner-name').textContent = partnerName;
+        if (tauriApi) tauriApi.core.invoke('set_partner_name', { name: partnerName });
+      }
+      if (msg.partnerAvatar) {
+        partnerAvatar = msg.partnerAvatar;
+        updatePartnerAvatarDisplay(partnerAvatar);
+        if (tauriApi) tauriApi.core.invoke('set_partner_icon', { iconPath: partnerAvatar });
+      }
+
+      // If we're paired (from local DB state), ensure paired view is shown
+      if (isPaired) {
         showPairedView();
         loadMessageHistory();
-        // Send read receipt for unread received messages on reconnect
         setTimeout(() => sendReadReceiptForLatestMessages(), 1000);
-        showToast('已恢复配对关系');
       }
+
+      // Notify Rust about reconnect result (using our local isPaired, not server's)
+      if (tauriApi) tauriApi.core.invoke('handle_reconnect_result', {
+        deviceId: msg.deviceId,
+        isPaired: isPaired,
+        partnerId: partnerId || msg.partnerId || null,
+      });
+
       console.log('Reconnect confirmed, paired:', isPaired);
       break;
 

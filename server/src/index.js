@@ -193,7 +193,10 @@ function handleMessage(deviceId, msg) {
 
 /**
  * Handle reconnect - device claims its persistent identity
- * This allows pairing relationships to survive app restarts
+ * This allows pairing relationships to survive app restarts AND server restarts
+ *
+ * Key change: client now sends partnerId, so server can restore pairing
+ * even when server has restarted and lost all in-memory state.
  */
 function handleReconnect(tempId, msg, device) {
   const persistentUUID = msg.persistentUUID;
@@ -220,6 +223,16 @@ function handleReconnect(tempId, msg, device) {
     }
   }
 
+  // Also check if the persistentUUID itself has an entry (from another connection)
+  if (devices.has(persistentUUID)) {
+    const existingDevice = devices.get(persistentUUID);
+    if (existingDevice && existingDevice.ws !== device.ws) {
+      console.log(`Replacing existing connection for persistentUUID ${persistentUUID}`);
+      existingDevice.ws.terminate();
+      devices.delete(persistentUUID);
+    }
+  }
+
   // Use persistent UUID as the new deviceId
   device.deviceId = persistentUUID;
   device.persistentUUID = persistentUUID;
@@ -230,24 +243,103 @@ function handleReconnect(tempId, msg, device) {
   // Register device with persistent UUID
   devices.set(persistentUUID, device);
 
-  // Check for existing pairing relationship
-  let partnerId = pairs.get(persistentUUID);
+  // ========== NEW: Restore pairing from client's claim ==========
+  const claimedPartnerId = msg.partnerId;  // Client sends its stored partnerId
+  let partnerId = null;
   let restoredPairing = false;
 
-  if (registered && registered.partnerId) {
-    // Restore pairing from registry if not already in pairs map
-    if (!partnerId) {
-      partnerId = registered.partnerId;
+  if (claimedPartnerId) {
+    // Device claims to be paired with this partnerId
+    // Check if partner already has a different pairing (partnered with someone else)
+    const partnerExistingPairing = pairs.get(claimedPartnerId);
+
+    if (partnerExistingPairing && partnerExistingPairing !== persistentUUID) {
+      // Partner is paired with a DIFFERENT device - our claim is stale
+      // The pairing is no longer valid
+      console.log(`Pairing claim rejected: ${claimedPartnerId} is paired with ${partnerExistingPairing}, not ${persistentUUID}`);
+      restoredPairing = false;
+      partnerId = null;
+    } else {
+      // Claim is valid - set up pairing
+      partnerId = claimedPartnerId;
       pairs.set(persistentUUID, partnerId);
-      pairs.set(partnerId, persistentUUID);
-      console.log(`Restored pairing: ${persistentUUID} <-> ${partnerId}`);
+      device.partnerId = partnerId;
+      restoredPairing = true;
+
+      // If partner is connected, set reverse mapping too
+      const partnerDevice = devices.get(partnerId);
+      if (partnerDevice && partnerDevice.persistentUUID) {
+        // Partner is online - complete the bidirectional pairing
+        pairs.set(partnerId, persistentUUID);
+        partnerDevice.partnerId = persistentUUID;
+        console.log(`Bidirectional pairing restored: ${persistentUUID} <-> ${partnerId}`);
+
+        // Notify partner that we're back online + send our profile
+        if (partnerDevice.ws.readyState === 1) {
+          partnerDevice.ws.send(JSON.stringify({
+            type: 'presence',
+            deviceId: persistentUUID,
+            status: 'online',
+            timestamp: Date.now()
+          }));
+
+          // Send our profile update so partner has our latest name/avatar
+          if (device.name || device.avatar) {
+            partnerDevice.ws.send(JSON.stringify({
+              type: 'profile_update',
+              deviceId: persistentUUID,
+              name: device.name || null,
+              avatar: device.avatar || null,
+              timestamp: Date.now()
+            }));
+          }
+        }
+      } else {
+        // Partner not connected yet - provisional pairing (one direction only)
+        // When partner later reconnects, they will complete the bidirectional pairing
+        console.log(`Provisional pairing: ${persistentUUID} claims ${partnerId} (partner offline)`);
+      }
     }
-    device.partnerId = partnerId;
-    restoredPairing = true;
+  } else if (registered && registered.partnerId) {
+    // No partnerId in reconnect message, but identityRegistry has one
+    // (This handles old clients that don't send partnerId yet)
+    partnerId = registered.partnerId;
+    const partnerExistingPairing = pairs.get(partnerId);
+
+    if (!partnerExistingPairing || partnerExistingPairing === persistentUUID) {
+      pairs.set(persistentUUID, partnerId);
+      device.partnerId = partnerId;
+      restoredPairing = true;
+
+      // Set reverse if partner is online
+      const partnerDevice = devices.get(partnerId);
+      if (partnerDevice && partnerDevice.persistentUUID) {
+        pairs.set(partnerId, persistentUUID);
+        partnerDevice.partnerId = persistentUUID;
+      }
+    }
+  } else {
+    // Check existing in-memory pairing from previous session (server still running)
+    partnerId = pairs.get(persistentUUID);
+    if (partnerId) {
+      device.partnerId = partnerId;
+      restoredPairing = true;
+    }
   }
 
   // Clean up registry entry (no longer needed since device is live)
   identityRegistry.delete(persistentUUID);
+
+  // Collect partner info for reconnect_ack
+  let partnerName = null;
+  let partnerAvatar = null;
+  if (partnerId) {
+    const partnerDeviceInfo = devices.get(partnerId);
+    if (partnerDeviceInfo) {
+      partnerName = partnerDeviceInfo.name || null;
+      partnerAvatar = partnerDeviceInfo.avatar || null;
+    }
+  }
 
   // Send reconnect confirmation to client
   device.ws.send(JSON.stringify({
@@ -255,25 +347,11 @@ function handleReconnect(tempId, msg, device) {
     deviceId: persistentUUID,
     isPaired: restoredPairing,
     partnerId: partnerId || null,
-    partnerPublicKey: null,   // Client already has this stored locally
-    partnerName: null,        // Client already has this stored locally
-    partnerAvatar: null       // Client already has this stored locally
+    partnerName: partnerName,
+    partnerAvatar: partnerAvatar
   }));
 
-  // If paired, notify partner that we're back online
-  if (partnerId) {
-    const partner = devices.get(partnerId);
-    if (partner && partner.ws.readyState === 1) {
-      partner.ws.send(JSON.stringify({
-        type: 'presence',
-        deviceId: persistentUUID,
-        status: 'online',
-        timestamp: Date.now()
-      }));
-    }
-  }
-
-  console.log(`Device ${persistentUUID} reconnected (was tempId: ${tempId}), paired: ${restoredPairing}`);
+  console.log(`Device ${persistentUUID} reconnected (was tempId: ${tempId}), paired: ${restoredPairing}, partner: ${partnerId || 'none'}`);
 }
 
 /**

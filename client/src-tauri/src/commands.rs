@@ -131,12 +131,14 @@ pub fn get_reconnect_info(state: tauri::State<'_, AppState>) -> Result<serde_jso
     let is_paired = *state.is_paired.lock().unwrap();
     let my_name = state.my_name.lock().unwrap().clone();
     let my_avatar = state.my_avatar.lock().unwrap().clone();
+    let partner_id = state.partner_id.lock().unwrap().clone();
 
     Ok(serde_json::json!({
         "type": "reconnect",
         "persistentUUID": device_id,
         "publicKey": keypair.public_key_base64,
         "isPaired": is_paired,
+        "partnerId": partner_id,
         "name": my_name,
         "avatar": my_avatar,
     }))
