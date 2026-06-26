@@ -1,0 +1,16 @@
+{
+  "name": "buddylink-client",
+  "version": "1.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "NODE_PATH=/Users/yuanyuanchengzi/.workbuddy/binaries/node/workspace/node_modules /Users/yuanyuanchengzi/.workbuddy/binaries/node/versions/22.22.2/bin/node /Users/yuanyuanchengzi/.workbuddy/binaries/node/workspace/node_modules/vite/bin/vite.js",
+    "build": "NODE_PATH=/Users/yuanyuanchengzi/.workbuddy/binaries/node/workspace/node_modules /Users/yuanyuanchengzi/.workbuddy/binaries/node/versions/22.22.2/bin/node /Users/yuanyuanchengzi/.workbuddy/binaries/node/workspace/node_modules/vite/bin/vite.js build",
+    "tauri": "source $HOME/.cargo/env && cargo tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}

@@ -1,0 +1,29 @@
+# Build artifacts
+client/src-tauri/target/
+client/dist/
+client/node_modules/
+server/node_modules/
+*.dmg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+
+# Rust
+Cargo.lock
+
+# Tauri
+client/src-tauri/gen/
