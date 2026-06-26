@@ -3,8 +3,8 @@ services:
     name: buddylink-relay
     runtime: node
     plan: free
-    buildCommand: cd server && npm install
-    startCommand: cd server && node src/index.js
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: PORT
         fromService:
